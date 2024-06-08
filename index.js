@@ -31,14 +31,36 @@ async function run() {
       .collection("properties");
     const usersCollection = client.db("greenShelterDB").collection("users");
 
-    app.post("/users", async (req, res) => {
-      const user = req.body;
-      const query = { email: user.email };
-      const existingUser = await usersCollection.findOne(query);
-      if (existingUser) {
-        return res.send({ insertedId: null });
+    // app.post("/users", async (req, res) => {
+    //   const user = req.body;
+    //   const query = { email: user.email };
+    //   const existingUser = await usersCollection.findOne(query);
+    //   if (existingUser) {
+    //     return res.send({ insertedId: null });
+    //   }
+    //   const result = await usersCollection.insertOne(user);
+    //   res.send(result);
+    // });
+    app.post("/add-wishlist/:email", async (req, res) => {
+      const { propertyId } = req.body;
+      const email = req.params.email;
+
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+
+      let wishList = Array.isArray(user.wishList) ? user.wishList : [];
+
+      if (wishList.includes(propertyId)) {
+        return res.send("Property already in wishlist");
       }
-      const result = await usersCollection.insertOne(user);
+
+      wishList.push(propertyId);
+
+      const update = {
+        $set: { wishList: wishList },
+      };
+
+      const result = await usersCollection.updateOne(query, update);
       res.send(result);
     });
 
@@ -83,6 +105,16 @@ async function run() {
         $push: { reviews: newReview },
       });
 
+      res.send(result);
+    });
+
+    app.post("/add-wishlist/:email", async (req, res) => {
+      const wishList = req.body;
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await usersCollection.updateOne(query, {
+        $push: { wishList: wishList },
+      });
       res.send(result);
     });
 
