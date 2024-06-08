@@ -29,9 +29,23 @@ async function run() {
     const propertiesCollection = client
       .db("greenShelterDB")
       .collection("properties");
+    const usersCollection = client.db("greenShelterDB").collection("users");
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ insertedId: null });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
 
     app.get("/verified-properties", async (req, res) => {
-      const result = await propertiesCollection.find().toArray();
+      const result = await propertiesCollection
+        .find({ status: "verified" })
+        .toArray();
       res.send(result);
     });
     app.get("/advertised-properties", async (req, res) => {
@@ -57,6 +71,18 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await propertiesCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.post("/property/:id/review", async (req, res) => {
+      const id = req.params.id;
+      const newReview = req.body;
+      const query = { _id: new ObjectId(id) };
+
+      const result = await propertiesCollection.updateOne(query, {
+        $push: { reviews: newReview },
+      });
+
       res.send(result);
     });
 
