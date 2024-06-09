@@ -141,21 +141,20 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/make-offer", async (req, res) => {
-      const { userEmail, propertyId, offerAmount, status } = req.body;
+    app.post("/submit-offer", async (req, res) => {
+      const { propertyId, offeredAmount, buyerEmail, offerDate } = req.body;
+      const query = { email: buyerEmail };
+      const result = await usersCollection.updateOne(query, {
+        $push: {
+          propertiesBought: {
+            propertyId,
+            offeredAmount,
+            offerDate,
+            status: "pending",
+          },
+        },
+      });
 
-      const offer = {
-        propertyId,
-        offerAmount,
-        status,
-      };
-
-      const userQuery = { email: userEmail };
-      const update = {
-        $push: { propertyBought: offer },
-      };
-
-      const result = await usersCollection.updateOne(userQuery, update);
       res.send(result);
     });
 
