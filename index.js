@@ -71,7 +71,10 @@ async function run() {
       res.send(result);
     });
     app.get("/advertised-properties", async (req, res) => {
-      const query = { advertised: "true" };
+      const query = {
+        advertised: "true",
+        status: "verified",
+      };
       const result = await propertiesCollection.find(query).toArray();
       res.send(result);
     });
@@ -115,6 +118,44 @@ async function run() {
       const result = await usersCollection.updateOne(query, {
         $push: { wishList: wishList },
       });
+      res.send(result);
+    });
+
+    app.get("/user-wishlist/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+      const wishlist = user.wishList || [];
+      res.send(wishlist);
+    });
+
+    app.delete("/remove-wishlist/:email/:propertyId", async (req, res) => {
+      const email = req.params.email;
+      const propertyId = req.params.propertyId;
+
+      const query = { email: email };
+      const update = {
+        $pull: { wishList: propertyId },
+      };
+
+      const result = await usersCollection.updateOne(query, update);
+      res.send(result);
+    });
+
+    app.post("/make-offer", async (req, res) => {
+      const { userEmail, propertyId, offerAmount, status } = req.body;
+
+      const offer = {
+        propertyId,
+        offerAmount,
+        status,
+      };
+
+      const userQuery = { email: userEmail };
+      const update = {
+        $push: { propertyBought: offer },
+      };
+
+      const result = await usersCollection.updateOne(userQuery, update);
       res.send(result);
     });
 
