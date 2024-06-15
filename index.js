@@ -66,14 +66,14 @@ async function run() {
 
     app.get("/verified-properties", async (req, res) => {
       const result = await propertiesCollection
-        .find({ status: "verified" })
+        .find({ propertyStatus: "verified" })
         .toArray();
       res.send(result);
     });
     app.get("/advertised-properties", async (req, res) => {
       const query = {
         advertised: "true",
-        status: "verified",
+        propertyStatus: "verified",
       };
       const result = await propertiesCollection.find(query).toArray();
       res.send(result);
@@ -150,12 +150,30 @@ async function run() {
             propertyId,
             offeredAmount,
             offerDate,
-            status: "pending",
+            boughtStatus: "pending",
           },
         },
       });
 
       res.send(result);
+    });
+
+    app.get("/user-properties-bought/:email", async (req, res) => {
+      const { email } = req.params;
+      try {
+        const user = await usersCollection.findOne(
+          { email: email },
+          { projection: { propertiesBought: 1 } }
+        );
+        if (user) {
+          res.send(user.propertiesBought);
+        } else {
+          res.status(404).send({ message: "User not found" });
+        }
+      } catch (error) {
+        console.error("Error fetching user properties:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
     });
 
     await client.db("admin").command({ ping: 1 });
