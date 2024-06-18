@@ -31,16 +31,26 @@ async function run() {
       .collection("properties");
     const usersCollection = client.db("greenShelterDB").collection("users");
 
-    // app.post("/users", async (req, res) => {
-    //   const user = req.body;
-    //   const query = { email: user.email };
-    //   const existingUser = await usersCollection.findOne(query);
-    //   if (existingUser) {
-    //     return res.send({ insertedId: null });
-    //   }
-    //   const result = await usersCollection.insertOne(user);
-    //   res.send(result);
-    // });
+    app.post("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email: email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ insertedId: null });
+      }
+      user.email = email;
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+    app.get("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+
+      res.send(result || { message: "User not found" });
+    });
+
     app.post("/add-wishlist/:email", async (req, res) => {
       const { propertyId } = req.body;
       const email = req.params.email;
@@ -141,6 +151,29 @@ async function run() {
       res.send(result);
     });
 
+    app.delete(
+      "/delete-userReview/:propertyId/:email/:reviewId",
+      (req, res) => {
+        const propertyId = req.params.propertyId;
+        const email = req.params.email;
+        const reviewId = req.params.reviewId;
+
+        propertiesCollection
+          .updateOne(
+            { _id: new ObjectId(propertyId) },
+            { $pull: { reviews: { reviewId: reviewId, reviewerEmail: email } } }
+          )
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            res
+              .status(500)
+              .send({ error: "An error occurred while deleting the review." });
+          });
+      }
+    );
+
     app.post("/submit-offer", async (req, res) => {
       const { propertyId, offeredAmount, buyerEmail, offerDate } = req.body;
       const query = { email: buyerEmail };
@@ -160,20 +193,21 @@ async function run() {
 
     app.get("/user-properties-bought/:email", async (req, res) => {
       const { email } = req.params;
-      try {
-        const user = await usersCollection.findOne(
-          { email: email },
-          { projection: { propertiesBought: 1 } }
-        );
-        if (user) {
-          res.send(user.propertiesBought);
-        } else {
-          res.status(404).send({ message: "User not found" });
-        }
-      } catch (error) {
-        console.error("Error fetching user properties:", error);
-        res.status(500).send({ message: "Internal server error" });
-      }
+
+      const user = await usersCollection.findOne({ email });
+      const propertiesBought = user.propertiesBought || [];
+
+      res.send(propertiesBought);
+    });
+
+    app.get("/reviews-by-email/:reviewerEmail", async (req, res) => {
+      const { reviewerEmail } = req.params;
+
+      const properties = await propertiesCollection.find().toArray();
+      const reviews = properties
+        .flatMap((property) => property.reviews || [])
+        .filter((review) => review.reviewerEmail === reviewerEmail);
+      res.send(reviews);
     });
 
     await client.db("admin").command({ ping: 1 });
