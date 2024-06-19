@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const jwt = require("jsonwebtoken");
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
@@ -30,6 +31,29 @@ async function run() {
       .db("greenShelterDB")
       .collection("properties");
     const usersCollection = client.db("greenShelterDB").collection("users");
+
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "forbidden access" });
+      }
+      const token = req.headers.authorization;
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "forbidden access" });
+        }
+        req.decoded = decoded;
+        console.log("inside", req.headers.authorization);
+        next();
+      });
+    };
+
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
 
     app.post("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -121,17 +145,17 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/add-wishlist/:email", async (req, res) => {
-      const wishList = req.body;
-      const email = req.params.email;
-      const query = { email: email };
-      const result = await usersCollection.updateOne(query, {
-        $push: { wishList: wishList },
-      });
-      res.send(result);
-    });
+    // app.post("/add-wishlist/:email", async (req, res) => {
+    //   const wishList = req.body;
+    //   const email = req.params.email;
+    //   const query = { email: email };
+    //   const result = await usersCollection.updateOne(query, {
+    //     $push: { wishList: wishList },
+    //   });
+    //   res.send(result);
+    // });
 
-    app.get("/user-wishlist/:email", async (req, res) => {
+    app.get("/user-wishlist/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const user = await usersCollection.findOne({ email });
       const wishlist = user.wishList || [];
