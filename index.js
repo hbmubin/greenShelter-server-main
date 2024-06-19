@@ -182,6 +182,12 @@ async function run() {
       res.send(result);
     });
 
+    app.post("/property", verifyToken, verifyAgent, async (req, res) => {
+      const property = req.body;
+      const result = await propertiesCollection.insertOne(property);
+      res.send(result);
+    });
+
     // app.post("/add-wishlist/:email", async (req, res) => {
     //   const wishList = req.body;
     //   const email = req.params.email;
