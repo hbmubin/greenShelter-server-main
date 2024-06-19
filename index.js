@@ -34,17 +34,38 @@ async function run() {
 
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
-        return res.status(401).send({ message: "forbidden access" });
+        return res.status(401).send({ message: "unauthorized access" });
       }
       const token = req.headers.authorization;
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
-          return res.status(401).send({ message: "forbidden access" });
+          return res.status(401).send({ message: "unauthorized access" });
         }
         req.decoded = decoded;
         console.log("inside", req.headers.authorization);
         next();
       });
+    };
+
+    const verifyAgent = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAgent = user?.role === "agent";
+      if (!isAgent) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
     };
 
     app.post("/jwt", async (req, res) => {
@@ -53,6 +74,22 @@ async function run() {
         expiresIn: "1h",
       });
       res.send({ token });
+    });
+    app.get("/user-role/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let role = "";
+      if (user) {
+        role = user?.role;
+      }
+      if (role == undefined) {
+        role = "user";
+      }
+      res.send({ role });
     });
 
     app.post("/users/:email", async (req, res) => {
@@ -67,7 +104,7 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
-    app.get("/user/:email", async (req, res) => {
+    app.get("/user/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const result = await usersCollection.findOne(query);
