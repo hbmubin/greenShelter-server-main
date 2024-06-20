@@ -182,22 +182,6 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/property", verifyToken, verifyAgent, async (req, res) => {
-      const property = req.body;
-      const result = await propertiesCollection.insertOne(property);
-      res.send(result);
-    });
-
-    // app.post("/add-wishlist/:email", async (req, res) => {
-    //   const wishList = req.body;
-    //   const email = req.params.email;
-    //   const query = { email: email };
-    //   const result = await usersCollection.updateOne(query, {
-    //     $push: { wishList: wishList },
-    //   });
-    //   res.send(result);
-    // });
-
     app.get("/user-wishlist/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const user = await usersCollection.findOne({ email });
@@ -275,6 +259,49 @@ async function run() {
         .flatMap((property) => property.reviews || [])
         .filter((review) => review.reviewerEmail === reviewerEmail);
       res.send(reviews);
+    });
+
+    app.post("/property", verifyToken, verifyAgent, async (req, res) => {
+      const property = req.body;
+      const result = await propertiesCollection.insertOne(property);
+      res.send(result);
+    });
+
+    app.get(
+      "/agent/properties/:email",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const email = req.params.email;
+
+        const result = await propertiesCollection
+          .find({ agentEmail: email, propertyStatus: { $ne: "bought" } })
+          .toArray();
+
+        res.send(result);
+      }
+    );
+
+    app.patch("/property/:id", verifyToken, verifyAgent, async (req, res) => {
+      const propertyId = req.params.id;
+      const updatedFields = req.body;
+
+      const result = await propertiesCollection.updateOne(
+        { _id: new ObjectId(propertyId) },
+        { $set: updatedFields }
+      );
+
+      res.send(result);
+    });
+
+    app.delete("/property/:id", verifyToken, verifyAgent, async (req, res) => {
+      const propertyId = req.params.id;
+
+      const result = await propertiesCollection.deleteOne({
+        _id: new ObjectId(propertyId),
+      });
+
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
