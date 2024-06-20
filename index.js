@@ -275,7 +275,7 @@ async function run() {
         const email = req.params.email;
 
         const result = await propertiesCollection
-          .find({ agentEmail: email, propertyStatus: { $ne: "bought" } })
+          .find({ agentEmail: email, propertyStatus: { $ne: "sold" } })
           .toArray();
 
         res.send(result);
@@ -304,6 +304,19 @@ async function run() {
       res.send(result);
     });
 
+    app.get(
+      "/agent/sold-properties/:email",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const email = req.params.email;
+        const result = await propertiesCollection
+          .find({ agentEmail: email, propertyStatus: "sold" })
+          .toArray();
+
+        res.send(result);
+      }
+    );
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
