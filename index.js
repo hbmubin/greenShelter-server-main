@@ -228,16 +228,12 @@ async function run() {
     app.post("/submit-offer", async (req, res) => {
       const { propertyId, offeredAmount, buyerEmail, offerDate } = req.body;
       const query = { email: buyerEmail };
-      const result = await usersCollection.updateOne(query, {
-        $push: {
-          propertiesBought: {
-            propertyId,
-            offeredAmount,
-            offerDate,
-            boughtStatus: "pending",
-          },
-        },
-      });
+
+      const result = await usersCollection.updateOne(
+        query,
+        { $push: { propertiesBought: req.body } },
+        { upsert: true }
+      );
 
       res.send(result);
     });
@@ -317,6 +313,77 @@ async function run() {
         res.send(result);
       }
     );
+
+    app.get(
+      "/agent/offered-properties/:propertyId",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const propertyId = req.params.propertyId;
+
+        const users = await usersCollection
+          .find({
+            "propertiesBought.propertyId": propertyId,
+          })
+          .toArray();
+
+        const result = users.reduce((acc, user) => {
+          const properties = user.propertiesBought
+            .filter((property) => property.propertyId == propertyId)
+            .map((property) => ({
+              ...property,
+              buyerInfo: {
+                buyerEmail: user.email,
+                buyerName: user.name,
+                buyerPhotoURL: user.photoURL,
+              },
+            }));
+          // console.log(properties);
+          return acc.concat(properties);
+        }, []);
+
+        res.send(result);
+      }
+    );
+
+    // app.post("/agent/accept/:offerId", async (req, res) => {
+    //   const { offerId } = req.params;
+
+    //   const result = await usersCollection.findOneAndUpdate(
+    //     { "propertiesBought.offerId": offerId },
+    //     { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
+    //     { new: true }
+    //   );
+    //   res.send(result);
+    // });
+
+    app.post("/agent/accept/:offerId/:propertyId", async (req, res) => {
+      const { offerId, propertyId } = req.params;
+
+      try {
+        // Step 1: Update the specific offer to "accepted"
+        const acceptResult = await usersCollection.findOneAndUpdate(
+          { "propertiesBought.offerId": offerId },
+          { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
+          { returnDocument: "after" }
+        );
+
+        // Step 2: Update all other offers with the same propertyId to "rejected"
+        const rejectResult = await usersCollection.updateMany(
+          {
+            "propertiesBought.propertyId": propertyId,
+            "propertiesBought.offerId": { $ne: offerId },
+          },
+          { $set: { "propertiesBought.$.boughtStatus": "rejected" } }
+        );
+
+        res.send({ acceptResult, rejectResult });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("An error occurred while processing the request.");
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
