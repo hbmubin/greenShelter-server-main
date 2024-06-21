@@ -346,42 +346,35 @@ async function run() {
       }
     );
 
-    // app.post("/agent/accept/:offerId", async (req, res) => {
-    //   const { offerId } = req.params;
-
-    //   const result = await usersCollection.findOneAndUpdate(
-    //     { "propertiesBought.offerId": offerId },
-    //     { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
-    //     { new: true }
-    //   );
-    //   res.send(result);
-    // });
-
     app.post("/agent/accept/:offerId/:propertyId", async (req, res) => {
       const { offerId, propertyId } = req.params;
 
-      try {
-        // Step 1: Update the specific offer to "accepted"
-        const acceptResult = await usersCollection.findOneAndUpdate(
-          { "propertiesBought.offerId": offerId },
-          { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
-          { returnDocument: "after" }
-        );
+      const acceptResult = await usersCollection.findOneAndUpdate(
+        { "propertiesBought.offerId": offerId },
+        { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
+        { returnDocument: "after" }
+      );
 
-        // Step 2: Update all other offers with the same propertyId to "rejected"
-        const rejectResult = await usersCollection.updateMany(
-          {
-            "propertiesBought.propertyId": propertyId,
-            "propertiesBought.offerId": { $ne: offerId },
-          },
-          { $set: { "propertiesBought.$.boughtStatus": "rejected" } }
-        );
+      const rejectResult = await usersCollection.updateMany(
+        {
+          "propertiesBought.propertyId": propertyId,
+          "propertiesBought.offerId": { $ne: offerId },
+        },
+        { $set: { "propertiesBought.$.boughtStatus": "rejected" } }
+      );
 
-        res.send({ acceptResult, rejectResult });
-      } catch (error) {
-        console.error(error);
-        res.status(500).send("An error occurred while processing the request.");
-      }
+      res.send({ acceptResult, rejectResult });
+    });
+
+    app.post("/agent/reject/:offerId", async (req, res) => {
+      const { offerId } = req.params;
+
+      const result = await usersCollection.findOneAndUpdate(
+        { "propertiesBought.offerId": offerId },
+        { $set: { "propertiesBought.$.boughtStatus": "rejected" } },
+        { new: true }
+      );
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
