@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const jwt = require("jsonwebtoken");
 const cors = require("cors");
+// const stripe = require("stripe")(process.env.STRIPE_SK);
+
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
@@ -32,11 +34,26 @@ async function run() {
       .collection("properties");
     const usersCollection = client.db("greenShelterDB").collection("users");
 
+    // app.post("/create-payment-intent", async (req, res) => {
+    //   const { price } = req.body;
+    //   const amount = parseInt(price * 100);
+    //   console.log(amount);
+    //   const paymentIntent = await stripe.paymentIntents.create({
+    //     amount: amount,
+    //     currency: "usd",
+    //     payment_method_types: ["card "],
+    //   });
+
+    //   res.send({
+    //     clientSecret: paymentIntent.client_secret,
+    //   });
+    // });
+
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "unauthorized access" });
       }
-      const token = req.headers.authorization;
+      const token = req.headers.authorization.split(" ")[1];
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
           return res.status(401).send({ message: "unauthorized access" });
@@ -346,36 +363,129 @@ async function run() {
       }
     );
 
-    app.post("/agent/accept/:offerId/:propertyId", async (req, res) => {
-      const { offerId, propertyId } = req.params;
+    app.post(
+      "/agent/accept/:offerId/:propertyId",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const { offerId, propertyId } = req.params;
 
-      const acceptResult = await usersCollection.findOneAndUpdate(
-        { "propertiesBought.offerId": offerId },
-        { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
-        { returnDocument: "after" }
-      );
+        const acceptResult = await usersCollection.findOneAndUpdate(
+          { "propertiesBought.offerId": offerId },
+          { $set: { "propertiesBought.$.boughtStatus": "accepted" } },
+          { returnDocument: "after" }
+        );
 
-      const rejectResult = await usersCollection.updateMany(
-        {
-          "propertiesBought.propertyId": propertyId,
-          "propertiesBought.offerId": { $ne: offerId },
-        },
-        { $set: { "propertiesBought.$.boughtStatus": "rejected" } }
-      );
+        const rejectResult = await usersCollection.updateMany(
+          {
+            "propertiesBought.propertyId": propertyId,
+            "propertiesBought.offerId": { $ne: offerId },
+          },
+          { $set: { "propertiesBought.$.boughtStatus": "rejected" } }
+        );
 
-      res.send({ acceptResult, rejectResult });
-    });
+        res.send({ acceptResult, rejectResult });
+      }
+    );
 
-    app.post("/agent/reject/:offerId", async (req, res) => {
-      const { offerId } = req.params;
+    app.post(
+      "/agent/reject/:offerId",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const { offerId } = req.params;
 
-      const result = await usersCollection.findOneAndUpdate(
-        { "propertiesBought.offerId": offerId },
-        { $set: { "propertiesBought.$.boughtStatus": "rejected" } },
-        { new: true }
-      );
-      res.send(result);
-    });
+        const result = await usersCollection.findOneAndUpdate(
+          { "propertiesBought.offerId": offerId },
+          { $set: { "propertiesBought.$.boughtStatus": "rejected" } },
+          { new: true }
+        );
+        res.send(result);
+      }
+    );
+
+    app.post(
+      "/agent/payment-confirm/:paymentId/:propertyId",
+      async (req, res) => {
+        const { paymentId, propertyId } = req.params;
+        const {
+          buyerEmail,
+          buyerName,
+          buyerPhotoURL,
+          offeredAmount,
+          agentEmail,
+          offerId,
+        } = req.body;
+
+        try {
+          // Update the property
+          const propertyUpdateResult = await propertiesCollection.updateOne(
+            { _id: new ObjectId(propertyId) },
+            {
+              $set: {
+                buyerEmail,
+                buyerName,
+                buyerPhotoURL,
+                soldPrice: offeredAmount,
+                propertyStatus: "sold",
+              },
+            }
+          );
+
+          if (propertyUpdateResult.matchedCount === 0) {
+            return res.status(404).json({ error: "Property not found" });
+          }
+
+          // Update the user's propertiesBought
+          const userUpdateResult = await usersCollection.updateOne(
+            { email: buyerEmail, "propertiesBought.offerId": offerId },
+            {
+              $set: {
+                "propertiesBought.$.boughtStatus": "bought",
+              },
+            }
+          );
+
+          if (userUpdateResult.matchedCount === 0) {
+            return res
+              .status(404)
+              .json({ error: "User or offer not found in user collection" });
+          }
+
+          // Add to soldProperties array in agent's document
+          const agentUpdateResult = await usersCollection.updateOne(
+            { email: agentEmail },
+            {
+              $push: {
+                soldProperties: {
+                  buyerEmail,
+                  buyerName,
+                  buyerPhotoURL,
+                  offeredAmount,
+                  offerId,
+                  propertyId,
+                  paymentId,
+                },
+              },
+            }
+          );
+
+          if (agentUpdateResult.matchedCount === 0) {
+            return res.status(404).json({ error: "Agent not found" });
+          }
+
+          res.json({
+            message: "Payment confirmed and property updated",
+            propertyUpdateResult,
+            userUpdateResult,
+            agentUpdateResult,
+          });
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ error: "Internal Server Error" });
+        }
+      }
+    );
 
     await client.db("admin").command({ ping: 1 });
     console.log(
