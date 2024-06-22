@@ -485,6 +485,30 @@ async function run() {
       }
     );
 
+    app.get(
+      "/admin/agent-sold-properties-stats/:agentEmail",
+      verifyToken,
+      verifyAgent,
+      async (req, res) => {
+        const { agentEmail } = req.params;
+
+        const agent = await usersCollection.findOne({ email: agentEmail });
+
+        let totalAmount = 0;
+        let totalCount = 0;
+
+        agent.soldProperties.forEach((property) => {
+          totalAmount += parseFloat(property.offeredAmount);
+          totalCount++;
+        });
+
+        res.send({
+          totalAmount,
+          totalCount,
+        });
+      }
+    );
+
     app.get("/admin/properties", verifyToken, verifyAdmin, async (req, res) => {
       const result = await propertiesCollection.find({}).toArray();
       res.send(result);
@@ -518,7 +542,12 @@ async function run() {
 
         const result = await propertiesCollection.updateOne(
           { _id: new ObjectId(id) },
-          { $set: { propertyStatus: "rejected" } }
+          {
+            $set: {
+              propertyStatus: "rejected",
+              advertised: "false",
+            },
+          }
         );
 
         res.send(result);
@@ -622,6 +651,22 @@ async function run() {
         const result = await propertiesCollection.updateOne(
           { "reviews.reviewId": reviewId },
           { $pull: { reviews: { reviewId: reviewId } } }
+        );
+
+        res.send(result);
+      }
+    );
+
+    app.patch(
+      "/admin/advertise-property/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+
+        const result = await propertiesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { advertised: "true" } }
         );
 
         res.send(result);
