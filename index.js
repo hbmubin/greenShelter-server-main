@@ -288,7 +288,7 @@ async function run() {
         const email = req.params.email;
 
         const result = await propertiesCollection
-          .find({ agentEmail: email, propertyStatus: { $ne: "sold" } })
+          .find({ agentEmail: email })
           .toArray();
 
         res.send(result);
@@ -406,6 +406,7 @@ async function run() {
 
     app.post(
       "/agent/payment-confirm/:paymentId/:propertyId",
+      verifyToken,
       async (req, res) => {
         const { paymentId, propertyId } = req.params;
         const {
@@ -418,7 +419,6 @@ async function run() {
         } = req.body;
 
         try {
-          // Update the property
           const propertyUpdateResult = await propertiesCollection.updateOne(
             { _id: new ObjectId(propertyId) },
             {
@@ -436,7 +436,6 @@ async function run() {
             return res.status(404).json({ error: "Property not found" });
           }
 
-          // Update the user's propertiesBought
           const userUpdateResult = await usersCollection.updateOne(
             { email: buyerEmail, "propertiesBought.offerId": offerId },
             {
@@ -452,7 +451,6 @@ async function run() {
               .json({ error: "User or offer not found in user collection" });
           }
 
-          // Add to soldProperties array in agent's document
           const agentUpdateResult = await usersCollection.updateOne(
             { email: agentEmail },
             {
@@ -484,6 +482,149 @@ async function run() {
           console.error(error);
           res.status(500).json({ error: "Internal Server Error" });
         }
+      }
+    );
+
+    app.get("/admin/properties", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await propertiesCollection.find({}).toArray();
+      res.send(result);
+    });
+    app.get("/admin/all-users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find({}).toArray();
+      res.send(result);
+    });
+
+    app.patch(
+      "/admin/verify-property/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+
+        const result = await propertiesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { propertyStatus: "verified" } }
+        );
+
+        res.send(result);
+      }
+    );
+    app.patch(
+      "/admin/reject-property/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+
+        const result = await propertiesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { propertyStatus: "rejected" } }
+        );
+
+        res.send(result);
+      }
+    );
+
+    app.patch(
+      "/admin/make-admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role: "admin" } }
+        );
+
+        res.send(result);
+      }
+    );
+    app.patch(
+      "/admin/make-agent/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role: "agent" } }
+        );
+
+        res.send(result);
+      }
+    );
+
+    app.patch(
+      "/admin/make-fraud/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { email } = req.params;
+
+        const userUpdateResult = await usersCollection.updateOne(
+          { email: email },
+          { $set: { role: "fraud" } }
+        );
+
+        const propertyDeleteResult = await propertiesCollection.deleteMany({
+          agentEmail: email,
+        });
+
+        const propertyBoughtUpdateResult = await usersCollection.updateMany(
+          { "propertiesBought.agentEmail": email },
+          { $pull: { propertiesBought: { agentEmail: email } } }
+        );
+
+        res.send({
+          message: "User marked as fraud and properties deleted successfully",
+          userUpdateResult,
+          propertyDeleteResult,
+          propertyBoughtUpdateResult,
+        });
+      }
+    );
+
+    app.delete(
+      "/admin/delete-user/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const userEmail = req.params.email;
+
+        const deleteUserResult = await usersCollection.deleteOne({
+          email: userEmail,
+        });
+
+        res.send({
+          message: "User and their properties deleted successfully",
+          deleteUserResult,
+        });
+      }
+    );
+
+    app.get("/admin/reviews", verifyToken, verifyAdmin, async (req, res) => {
+      const properties = await propertiesCollection
+        .find({}, { projection: { reviews: 1 } })
+        .toArray();
+      const reviews = properties.flatMap((property) => property.reviews || []);
+      res.send(reviews);
+    });
+
+    app.delete(
+      "/admin/delete-review/:reviewId",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { reviewId } = req.params;
+
+        const result = await propertiesCollection.updateOne(
+          { "reviews.reviewId": reviewId },
+          { $pull: { reviews: { reviewId: reviewId } } }
+        );
+
+        res.send(result);
       }
     );
 
