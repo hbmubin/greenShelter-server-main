@@ -8,7 +8,15 @@ require("dotenv").config();
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://greeen-shelter.web.app",
+      "https://greeen-shelter.firebaseapp.com",
+    ],
+  })
+);
 app.use(express.json());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -26,7 +34,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
 
     const propertiesCollection = client
@@ -59,7 +67,7 @@ async function run() {
           return res.status(401).send({ message: "unauthorized access" });
         }
         req.decoded = decoded;
-        console.log("inside", req.headers.authorization);
+        // console.log("inside", req.headers.authorization);
         next();
       });
     };
@@ -92,7 +100,7 @@ async function run() {
       });
       res.send({ token });
     });
-    app.get("/user-role/:email", verifyToken, async (req, res) => {
+    app.get("/user-role/:email", async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: "forbidden access" });
@@ -129,7 +137,7 @@ async function run() {
       res.send(result || { message: "User not found" });
     });
 
-    app.post("/add-wishlist/:email", async (req, res) => {
+    app.post("/add-wishlist/:email", verifyToken, async (req, res) => {
       const { propertyId } = req.body;
       const email = req.params.email;
 
@@ -673,10 +681,10 @@ async function run() {
       }
     );
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
