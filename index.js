@@ -100,7 +100,7 @@ async function run() {
       });
       res.send({ token });
     });
-    app.get("/user-role/:email", async (req, res) => {
+    app.get("/user-role/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: "forbidden access" });
@@ -129,6 +129,7 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+
     app.get("/user/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
@@ -449,6 +450,7 @@ async function run() {
             {
               $set: {
                 "propertiesBought.$.boughtStatus": "bought",
+                "propertiesBought.$.paymentId": paymentId,
               },
             }
           );
