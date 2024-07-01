@@ -18,8 +18,10 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.urlencoded());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { default: axios } = require("axios");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jweumb2.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -55,6 +57,55 @@ async function run() {
     //   res.send({
     //     clientSecret: paymentIntent.client_secret,
     //   });
+    // });
+
+    // app.post("/create-payment", async (req, res) => {
+    //   const initiateData = {
+    //     store_id: "green667fa7ce818e6",
+    //     store_passwd: "green667fa7ce818e6@ssl",
+    //     total_amount: 100,
+    //     currency: "BDT",
+    //     tran_id: "REF123",
+    //     success_url: "http://localhost:5000/payment-success",
+    //     fail_url: "http://yoursite.com/fail.php",
+    //     cancel_url: "http://yoursite.com/cancel.php",
+    //     cus_name: "Customer Name",
+    //     cus_email: "cust@yahoo.com",
+    //     cus_add1: "Dhaka",
+    //     cus_add2: "Dhaka",
+    //     cus_city: "Dhaka",
+    //     cus_state: "Dhaka",
+    //     cus_postcode: "1000",
+    //     cus_country: "Bangladesh",
+    //     cus_phone: "01711111111",
+    //     cus_fax: "01711111111",
+    //     shipping_method: "NO",
+    //     product_name: "mobile",
+    //     product_category: "mobile",
+    //     product_profile: "general",
+    //     multi_card_name: "mastercard,visacard,amexcard",
+    //     value_a: "ref001_A",
+    //     value_b: "ref002_B",
+    //     value_c: "ref003_C",
+    //     value_d: "ref004_D",
+    //   };
+    //   const response = await axios({
+    //     method: "POST",
+    //     url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+    //     data: initiateData,
+    //     headers: {
+    //       "Content-Type": "application/x-www-form-urlencoded",
+    //     },
+    //   });
+    //   console.log(response);
+    //   res.send({
+    //     paymentUrl: response.data.GatewayPageURL,
+    //   });
+    // });
+
+    // app.post("/payment-success", async (req, res) => {
+    //   const successData = req.body();
+    //   console.log(successData);
     // });
 
     const verifyToken = (req, res, next) => {
@@ -100,11 +151,8 @@ async function run() {
       });
       res.send({ token });
     });
-    app.get("/user-role/:email", verifyToken, async (req, res) => {
+    app.get("/user-role/:email", async (req, res) => {
       const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
       const query = { email: email };
       const user = await usersCollection.findOne(query);
       let role = "";
@@ -138,7 +186,7 @@ async function run() {
       res.send(result || { message: "User not found" });
     });
 
-    app.post("/add-wishlist/:email", verifyToken, async (req, res) => {
+    app.post("/add-wishlist/:email", async (req, res) => {
       const { propertyId } = req.body;
       const email = req.params.email;
 
@@ -683,10 +731,10 @@ async function run() {
       }
     );
 
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
