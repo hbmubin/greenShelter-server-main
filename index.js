@@ -59,54 +59,67 @@ async function run() {
     //   });
     // });
 
-    // app.post("/create-payment", async (req, res) => {
-    //   const initiateData = {
-    //     store_id: "green667fa7ce818e6",
-    //     store_passwd: "green667fa7ce818e6@ssl",
-    //     total_amount: 100,
-    //     currency: "BDT",
-    //     tran_id: "REF123",
-    //     success_url: "http://localhost:5000/payment-success",
-    //     fail_url: "http://yoursite.com/fail.php",
-    //     cancel_url: "http://yoursite.com/cancel.php",
-    //     cus_name: "Customer Name",
-    //     cus_email: "cust@yahoo.com",
-    //     cus_add1: "Dhaka",
-    //     cus_add2: "Dhaka",
-    //     cus_city: "Dhaka",
-    //     cus_state: "Dhaka",
-    //     cus_postcode: "1000",
-    //     cus_country: "Bangladesh",
-    //     cus_phone: "01711111111",
-    //     cus_fax: "01711111111",
-    //     shipping_method: "NO",
-    //     product_name: "mobile",
-    //     product_category: "mobile",
-    //     product_profile: "general",
-    //     multi_card_name: "mastercard,visacard,amexcard",
-    //     value_a: "ref001_A",
-    //     value_b: "ref002_B",
-    //     value_c: "ref003_C",
-    //     value_d: "ref004_D",
-    //   };
-    //   const response = await axios({
-    //     method: "POST",
-    //     url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
-    //     data: initiateData,
-    //     headers: {
-    //       "Content-Type": "application/x-www-form-urlencoded",
-    //     },
-    //   });
-    //   console.log(response);
-    //   res.send({
-    //     paymentUrl: response.data.GatewayPageURL,
-    //   });
-    // });
+    app.post("/create-payment", async (req, res) => {
+      const trxId = new ObjectId().toString();
 
-    // app.post("/payment-success", async (req, res) => {
-    //   const successData = req.body();
-    //   console.log(successData);
-    // });
+      const initiateData = {
+        store_id: "green667fa7ce818e6",
+        store_passwd: "green667fa7ce818e6@ssl",
+        total_amount: 100,
+        currency: "BDT",
+        tran_id: trxId,
+        success_url: "http://localhost:5000/payment-success",
+        fail_url: "http://localhost:5000/fail",
+        cancel_url: "http://localhost:5000/cancel",
+        cus_name: "Customer Name",
+        cus_email: "cust@yahoo.com",
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        shipping_method: "NO",
+        product_name: "mobile",
+        product_category: "mobile",
+        product_profile: "general",
+        multi_card_name: "mastercard,visacard,amexcard",
+        value_a: "ref001_A",
+        value_b: "ref002_B",
+        value_c: "ref003_C",
+        value_d: "ref004_D",
+      };
+      const response = await axios({
+        method: "POST",
+        url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+        data: initiateData,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      });
+      console.log(response);
+      res.send({
+        paymentUrl: response.data.GatewayPageURL,
+      });
+    });
+
+    app.post("/payment-success", async (req, res) => {
+      const successData = req.body;
+      console.log(successData);
+      if (successData.status !== "VALID") {
+        throw new Error("Invalid Payment");
+      }
+      res.redirect("http://localhost:5173/checkout");
+    });
+
+    app.post("/cancel", async (req, res) => {
+      res.redirect("http://localhost:5173/cancel");
+    });
+    app.post("/fail", async (req, res) => {
+      res.redirect("http://localhost:5173/fail");
+    });
 
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
